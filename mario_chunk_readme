@@ -1,0 +1,11 @@
+Bottom left 0 is the character representation of the file
+Left click and backsapce allows you to insert a different character
+
+
+click tiles/enemies on the left to set the tile type type (tile to be placed)
+
+click on the canvas to the right to place the set tile type
+click while holding x on tiles on the right to delete them
+right click a tile on the right to set the tile type
+
+Control s to save the file (chuck_*.txt) * being the character in the bottom left corner.
