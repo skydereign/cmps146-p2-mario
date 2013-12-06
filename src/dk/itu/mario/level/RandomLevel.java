@@ -55,17 +55,23 @@ public class RandomLevel extends Level{
 	        this(width, height);
 	        //Just going to hard code the mapping of char -> file. NOTE: THEY HAVE TO BE SINGLE CHARACTERS
 	        columns = new Hashtable<String, String>();
-	        columns.put("a", "res/columns/blank.txt");
-	        columns.put("b", "res/columns/bush.txt");
-	        columns.put("c", "res/columns/coin_ground.txt");
-	        columns.put("d", "res/columns/coin_low.txt");
-	        columns.put("e", "res/columns/coin_med.txt");
-	        columns.put("f", "res/columns/low_block_coin.txt");
-	        columns.put("g", "res/columns/low_block_empty.txt");
-	        columns.put("h", "res/columns/multi_block_row_1.txt");
-	        columns.put("i", "res/columns/multi_block_row_2.txt");
-	        columns.put("j", "res/columns/small_tube.txt");
-	        columns.put("k", "res/columns/low_rock.txt");
+	        columns = new Hashtable<String, String>();
+	        columns.put("a", "res/columns/chunk_0.txt");
+	        columns.put("b", "res/columns/chunk_1.txt");
+	        columns.put("c", "res/columns/chunk_2.txt");
+	        columns.put("d", "res/columns/chunk_3.txt");
+	        columns.put("e", "res/columns/chunk_4.txt");
+	        columns.put("f", "res/columns/chunk_5.txt");
+	        columns.put("g", "res/columns/chunk_6.txt");
+	        columns.put("h", "res/columns/chunk_7.txt");
+	        columns.put("i", "res/columns/chunk_8.txt");
+	        columns.put("j", "res/columns/chunk_9.txt");
+	        columns.put("k", "res/columns/chunk_GB.txt");
+	        columns.put("l", "res/columns/chunk_H.txt");
+	        columns.put("m", "res/columns/chunk_J1.txt");
+	        columns.put("n", "res/columns/chunk_St.txt");
+	        columns.put("o", "res/columns/chunk_Tr.txt");
+	        columns.put("p", "res/columns/chunk_wj.txt");
 //	        columns.put("a", "res/columns/blank.txt");
 //	        columns.put("a", "res/columns/blank.txt");
 //	        columns.put("a", "res/columns/blank.txt");
@@ -108,7 +114,7 @@ public class RandomLevel extends Level{
 	        }
 	        
 	        Markov levelGen = new Markov();
-	        levelGen.parse("abbabaaacccdddeeeadaeahhaaaaaaiiaaaaaaaaafagaagggaafffakak");
+          levelGen.parse("mkjnaacccdddeeeadaeahhapaaaaiiaakajaaaaafagaagggaafffakak");
 	        levelGen.setInitial("a");
 	        
 	        Markov e_changeMarkov = new Markov();
