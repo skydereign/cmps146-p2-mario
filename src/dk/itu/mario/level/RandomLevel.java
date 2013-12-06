@@ -1,12 +1,15 @@
 package dk.itu.mario.level;
 
 import java.util.Random;
+import java.util.Hashtable;
+import java.io.*;
+import java.util.Scanner;
 
 import dk.itu.mario.MarioInterface.Constraints;
 import dk.itu.mario.MarioInterface.LevelInterface;
 import dk.itu.mario.engine.sprites.SpriteTemplate;
 import dk.itu.mario.engine.sprites.Enemy;
-
+import markov.Markov;
 
 public class RandomLevel extends Level{
 //	//Store information about the level
@@ -15,6 +18,11 @@ public class RandomLevel extends Level{
 	 public   int BLOCKS_COINS = 0; // the number of coin blocks
 	 public   int BLOCKS_POWER = 0; // the number of power blocks
 	 public   int COINS = 0; //These are the coins in boxes that Mario collect
+	 public Hashtable<String, String> columns;
+	 public Hashtable<String, Integer> e_change;
+	 public Hashtable<String, Integer> gaps;
+	 public final int maxChunkWidth = 33;
+	 public final int maxChunkHeight = 18;
 
  
 	private static Random levelSeedRandom = new Random();
@@ -42,43 +50,205 @@ public class RandomLevel extends Level{
 	    }
 
 
-		public RandomLevel(int width, int height, long seed, int difficulty, int type)
+		public RandomLevel(int width, int height, long seed, int difficulty, int type) throws FileNotFoundException
 	    {
 	        this(width, height);
-	        makeBasicLevel();
-	        //creat(seed, difficulty, type);
+	        //Just going to hard code the mapping of char -> file. NOTE: THEY HAVE TO BE SINGLE CHARACTERS
+	        columns = new Hashtable<String, String>();
+	        columns.put("a", "res/columns/blank.txt");
+	        columns.put("b", "res/columns/bush.txt");
+	        columns.put("c", "res/columns/coin_ground.txt");
+	        columns.put("d", "res/columns/coin_low.txt");
+	        columns.put("e", "res/columns/coin_med.txt");
+	        columns.put("f", "res/columns/low_block_coin.txt");
+	        columns.put("g", "res/columns/low_block_empty.txt");
+	        columns.put("h", "res/columns/multi_block_row_1.txt");
+	        columns.put("i", "res/columns/multi_block_row_2.txt");
+	        columns.put("j", "res/columns/small_tube.txt");
+	        columns.put("k", "res/columns/low_rock.txt");
+//	        columns.put("a", "res/columns/blank.txt");
+//	        columns.put("a", "res/columns/blank.txt");
+//	        columns.put("a", "res/columns/blank.txt");
+//	        columns.put("a", "res/columns/blank.txt");
+//	        columns.put("a", "res/columns/blank.txt");
+//	        columns.put("a", "res/columns/blank.txt");
+//	        columns.put("a", "res/columns/blank.txt");
+	        
+	        e_change = new Hashtable<String, Integer>();
+	        e_change.put("0", 0);
+	        e_change.put("1", 1);
+	        e_change.put("2", 2);
+	        e_change.put("3", 3);
+	        e_change.put("a", -1);
+	        e_change.put("b", -2);
+	        e_change.put("c", -3);
+	        e_change.put("d", -4);
+	        e_change.put("e", -5);
+	        
+	        gaps = new Hashtable<String, Integer>();
+	        gaps.put("0", 0);
+	        gaps.put("1", 1);
+	        gaps.put("2", 2);
+	        gaps.put("3", 3);
+	        gaps.put("4", 4);
+	        gaps.put("5", 5);
+	        makeLevel();
+	        fixWalls();
+	        
 	    }
 		
 		
 		
-		public void makeBasicLevel() {
-	        for(int i = 0; i < 30; i++) { //starting buffer
-	        	setBlock(i, height-1,  (byte) (1 + 8 * 16 + 4 * 3)); //Need to find where the hell this is documented
+		public void makeLevel() throws FileNotFoundException {
+	        for(int i = 0; i < 20; i++) { //starting buffer
+	        	setBlock(i, height-1,  (byte) (5 + 8 * 16)); 
 	        }
-	        for(int i = width-60; i < width; i++) { //ending buffer
-	        	setBlock(i, height-1,  (byte) (1 + 8 * 16 + 4 * 3));
+	        for(int i = width-40; i < width; i++) { //ending buffer
+	        	setBlock(i, height-1,  (byte) (5 + 8 * 16));
 	        }
-	        //give 30 block buffer after start and before exit
-	        //gaps betweeen 2-5 blocks long.
-	        //running segments in between 2-15 blocks long
-	        int length = 30;
-	        while(length < width-60) {
-	        	int gap = (int) Math.floor(Math.random()*6+2);
-	        	int platform = (int) Math.floor(Math.random()*16+2);
-	        	length += gap;
-	        	for(int i = 0; i < platform; i++) {
-	        		setBlock(length, height-1,  (byte) (1 + 8 * 16 + 4 * 3));
-	        		if(Math.random() < 0.1) {
-	        			setSpriteTemplate(length, height-2, new SpriteTemplate(0, false));
-	        			ENEMIES++;
+	        
+	        Markov levelGen = new Markov();
+	        levelGen.parse("abbabaaacccdddeeeadaeahhaaaaaaiiaaaaaaaaafagaagggaafffakak");
+	        levelGen.setInitial("a");
+	        
+	        Markov e_changeMarkov = new Markov();
+	        e_changeMarkov.parse("010101111102a020aaaa0a0a00000000000");
+	        e_changeMarkov.setInitial("0");
+	        
+	        Markov gapsMarkov = new Markov();
+	        gapsMarkov.parse("00000111111110000220330444055555000100");
+	        gapsMarkov.setInitial("0");
+
+
+	        
+	        int xpos = 20;
+	        int elevation = 2;
+	        boolean calledRecently = false;
+	        while(xpos < width-40) {
+	        	//if(elevation >= 2 && elevation <= 10) {
+	        		int[][] chunk = parseFile(columns.get(levelGen.generateNext()));
+	        		xpos += applyChunk(chunk, xpos, elevation);
+	        		//to fix stupid issue with fixWalls going to enforce that a gap has wait for 2 segments to be placed
+	        		if(!calledRecently) {
+	        			xpos += gaps.get(gapsMarkov.generateNext());
+	        			calledRecently = true;
+	        		} else {
+	        			calledRecently = false;
 	        		}
-	        		length++;
+//	        	} else {
+//	        		if(elevation <= 2) {
+//	        			e_changeMarkov.setInitial("1");
+//	        		} 
+//	        		if(elevation >= 10) {
+//	        			e_changeMarkov.setInitial("a");
+//	        		}
+//	        		xpos++;
+//	        	}
+	        	int delta = e_change.get(e_changeMarkov.generateNext());
+	        	if(elevation + delta <= 12 && elevation + delta >= 2) {
+	        		elevation += delta;
+	        	} else {
+	        		if(elevation + delta <= 2) {
+	        			e_changeMarkov.setInitial("1");
+	        		} 
+	        		if(elevation + delta >= 12) {
+	        			e_changeMarkov.setInitial("a");
+	        		}
 	        	}
 	        }
 	        
 	        
-	        xExit = width-30;
+//	        int length = 20;
+//	        while(length < width-40) {
+//	        	int gap = (int) Math.floor(Math.random()*5+2);
+//	        	int platform = (int) Math.floor(Math.random()*16+2);
+//	        	length += gap;
+//	        	for(int i = 0; i < platform; i++) {
+//	        		setBlock(length, height-1,  (byte) (5 + 8 * 16));
+//	        		if(Math.random() < 0.1) {
+//	        			setSpriteTemplate(length, height-2, new SpriteTemplate(0, false));
+//	        			ENEMIES++;
+//	        		}
+//	        		length++;
+//	        	}
+//	        }
+	        
+	        
+	        xExit = width-16;
 	        yExit = height-1;
+		}
+		
+		public int[][] parseFile(String f) throws FileNotFoundException {
+			int[][] chunk = new int[maxChunkWidth][maxChunkHeight];
+			Scanner in = new Scanner(new BufferedReader(new FileReader(f)));
+			in.nextLine(); //passes the first line. Just gonna hardcode the keys.
+			int chunkWidth = 0;
+			int chunkHeight = 0;
+			int i = 0;
+			while(in.hasNext()) {
+				//reads in a line
+				//then scans that line for ints, placing them in the array.
+				Scanner s = new Scanner(in.nextLine());
+				int j = 0;
+				while(s.hasNext()) {
+					chunk[j][i] = s.nextInt();
+					j++;
+				}
+				chunkWidth = j;
+				i++;
+			}
+			chunkHeight = i;
+			
+			//putting it a properly sized array to make my life easier later. Probably wasn't necessary, but whatever
+			int[][] properlySizedChunk = new int[chunkWidth][chunkHeight];
+			for(int m = 0; m < chunkWidth; m++) {
+				for(int n = 0; n < chunkHeight; n++) {
+					properlySizedChunk[m][n] = chunk[m][n];
+				}
+			}
+
+			return properlySizedChunk;
+		}
+		
+		public int applyChunk(int[][] chunk, int width, int elevation) {
+			for(int i = 0; i < chunk.length; i++) {
+				int celevation = elevation;
+				//int elevation = this.height - elevation; //current ypos
+				//place 'ground' tiles up until surface
+				//place the rest of the tiles above that
+				for(int k = 0; k < elevation; k++) {
+					//if(k != elevation - 1) {
+						setBlock(width+i, this.height-k,  GROUND);
+					//} else {
+						//setBlock(width+i, this.height-k,  (byte) 129);
+					//}
+				}
+				
+				for(int j = chunk[0].length-1; j >= 0; j--) {
+					if(chunk[i][j] < 256) {
+						setBlock(width+i, this.height-celevation, (byte) chunk[i][j]);
+						System.out.println(j + " " + chunk[i][j]);
+					} else {
+						if(chunk[i][j] == 256) {
+							setSpriteTemplate(width+i, this.height-celevation, new SpriteTemplate(0, false));
+						}
+						if(chunk[i][j] == 257) {
+							setSpriteTemplate(width+i, this.height-celevation, new SpriteTemplate(1, false));
+						}
+						if(chunk[i][j] == 258) {
+							setSpriteTemplate(width+i, this.height-celevation, new SpriteTemplate(2, false));
+						}
+						if(chunk[i][j] == 259) {
+							setSpriteTemplate(width+i, this.height-celevation, new SpriteTemplate(3, false));
+						}
+						if(chunk[i][j] == 262) {
+							setSpriteTemplate(width+i, this.height-celevation, new SpriteTemplate(4, false));
+						}
+					}
+					celevation++;
+				}
+			}
+			return chunk.length;
 		}
 
 //	    public void creat(long seed, int difficulty, int type)
@@ -552,166 +722,158 @@ public class RandomLevel extends Level{
 //	        }
 //	    }
 //
-//	    private void fixWalls()
-//	    {
-//	        boolean[][] blockMap = new boolean[width + 1][height + 1];
-//
-//	        for (int x = 0; x < width + 1; x++)
-//	        {
-//	            for (int y = 0; y < height + 1; y++)
-//	            {
-//	                int blocks = 0;
-//	                for (int xx = x - 1; xx < x + 1; xx++)
-//	                {
-//	                    for (int yy = y - 1; yy < y + 1; yy++)
-//	                    {
-//	                        if (getBlockCapped(xx, yy) == GROUND){
-//	                        	blocks++;
-//	                        }
-//	                    }
-//	                }
-//	                blockMap[x][y] = blocks == 4;
-//	            }
-//	        }
-//	        blockify(this, blockMap, width + 1, height + 1);
-//	    }
-//
-//	    private void blockify(Level level, boolean[][] blocks, int width, int height){
-//	        int to = 0;
-//	        if (type == LevelInterface.TYPE_CASTLE)
-//	        {
-//	            to = 4 * 2;
-//	        }
-//	        else if (type == LevelInterface.TYPE_UNDERGROUND)
-//	        {
-//	            to = 4 * 3;
-//	        }
-//
-//	        boolean[][] b = new boolean[2][2];
-//
-//	        for (int x = 0; x < width; x++)
-//	        {
-//	            for (int y = 0; y < height; y++)
-//	            {
-//	                for (int xx = x; xx <= x + 1; xx++)
-//	                {
-//	                    for (int yy = y; yy <= y + 1; yy++)
-//	                    {
-//	                        int _xx = xx;
-//	                        int _yy = yy;
-//	                        if (_xx < 0) _xx = 0;
-//	                        if (_yy < 0) _yy = 0;
-//	                        if (_xx > width - 1) _xx = width - 1;
-//	                        if (_yy > height - 1) _yy = height - 1;
-//	                        b[xx - x][yy - y] = blocks[_xx][_yy];
-//	                    }
-//	                }
-//
-//	                if (b[0][0] == b[1][0] && b[0][1] == b[1][1])
-//	                {
-//	                    if (b[0][0] == b[0][1])
-//	                    {
-//	                        if (b[0][0])
-//	                        {
-//	                            level.setBlock(x, y, (byte) (1 + 9 * 16 + to));
-//	                        }
-//	                        else
-//	                        {
-//	                            // KEEP OLD BLOCK!
-//	                        }
-//	                    }
-//	                    else
-//	                    {
-//	                        if (b[0][0])
-//	                        {
-//	                        	//down grass top?
-//	                            level.setBlock(x, y, (byte) (1 + 10 * 16 + to));
-//	                        }
-//	                        else
-//	                        {
-//	                        	//up grass top
-//	                            level.setBlock(x, y, (byte) (1 + 8 * 16 + to));
-//	                        }
-//	                    }
-//	                }
-//	                else if (b[0][0] == b[0][1] && b[1][0] == b[1][1])
-//	                {
-//	                    if (b[0][0])
-//	                    {
-//	                    	//right grass top
-//	                        level.setBlock(x, y, (byte) (2 + 9 * 16 + to));
-//	                    }
-//	                    else
-//	                    {
-//	                    	//left grass top
-//	                        level.setBlock(x, y, (byte) (0 + 9 * 16 + to));
-//	                    }
-//	                }
-//	                else if (b[0][0] == b[1][1] && b[0][1] == b[1][0])
-//	                {
-//	                    level.setBlock(x, y, (byte) (1 + 9 * 16 + to));
-//	                }
-//	                else if (b[0][0] == b[1][0])
-//	                {
-//	                    if (b[0][0])
-//	                    {
-//	                        if (b[0][1])
-//	                        {
-//	                            level.setBlock(x, y, (byte) (3 + 10 * 16 + to));
-//	                        }
-//	                        else
-//	                        {
-//	                            level.setBlock(x, y, (byte) (3 + 11 * 16 + to));
-//	                        }
-//	                    }
-//	                    else
-//	                    {
-//	                        if (b[0][1])
-//	                        {
-//	                        	//right up grass top
-//	                            level.setBlock(x, y, (byte) (2 + 8 * 16 + to));
-//	                        }
-//	                        else
-//	                        {
-//	                        	//left up grass top
-//	                            level.setBlock(x, y, (byte) (0 + 8 * 16 + to));
-//	                        }
-//	                    }
-//	                }
-//	                else if (b[0][1] == b[1][1])
-//	                {
-//	                    if (b[0][1])
-//	                    {
-//	                        if (b[0][0])
-//	                        {
-//	                        	//left pocket grass
-//	                            level.setBlock(x, y, (byte) (3 + 9 * 16 + to));
-//	                        }
-//	                        else
-//	                        {
-//	                        	//right pocket grass
-//	                            level.setBlock(x, y, (byte) (3 + 8 * 16 + to));
-//	                        }
-//	                    }
-//	                    else
-//	                    {
-//	                        if (b[0][0])
-//	                        {
-//	                            level.setBlock(x, y, (byte) (2 + 10 * 16 + to));
-//	                        }
-//	                        else
-//	                        {
-//	                            level.setBlock(x, y, (byte) (0 + 10 * 16 + to));
-//	                        }
-//	                    }
-//	                }
-//	                else
-//	                {
-//	                    level.setBlock(x, y, (byte) (0 + 1 * 16 + to));
-//	                }
-//	            }
-//	        }
-//	    }
+	    private void fixWalls()
+	    {
+	        boolean[][] blockMap = new boolean[width + 1][height + 1];
+
+	        for (int x = 0; x < width + 1; x++)
+	        {
+	            for (int y = 0; y < height + 1; y++)
+	            {
+	                int blocks = 0;
+	                for (int xx = x - 1; xx < x + 1; xx++)
+	                {
+	                    for (int yy = y - 1; yy < y + 1; yy++)
+	                    {
+	                        if (getBlockCapped(xx, yy) == GROUND){
+	                        	blocks++;
+	                        }
+	                    }
+	                }
+	                blockMap[x][y] = blocks == 4;
+	            }
+	        }
+	        blockify(this, blockMap, width + 1, height + 1);
+	    }
+
+	    private void blockify(Level level, boolean[][] blocks, int width, int height){
+	        int to = 0;
+
+	        boolean[][] b = new boolean[2][2];
+
+	        for (int x = 0; x < width; x++)
+	        {
+	            for (int y = 0; y < height; y++)
+	            {
+	                for (int xx = x; xx <= x + 1; xx++)
+	                {
+	                    for (int yy = y; yy <= y + 1; yy++)
+	                    {
+	                        int _xx = xx;
+	                        int _yy = yy;
+	                        if (_xx < 0) _xx = 0;
+	                        if (_yy < 0) _yy = 0;
+	                        if (_xx > width - 1) _xx = width - 1;
+	                        if (_yy > height - 1) _yy = height - 1;
+	                        b[xx - x][yy - y] = blocks[_xx][_yy];
+	                    }
+	                }
+
+	                if (b[0][0] == b[1][0] && b[0][1] == b[1][1])
+	                {
+	                    if (b[0][0] == b[0][1])
+	                    {
+	                        if (b[0][0])
+	                        {
+	                            level.setBlock(x, y, (byte) (1 + 9 * 16 + to));
+	                        }
+	                        else
+	                        {
+	                            // KEEP OLD BLOCK!
+	                        }
+	                    }
+	                    else
+	                    {
+	                        if (b[0][0])
+	                        {
+	                        	//down grass top?
+	                            level.setBlock(x, y, (byte) (1 + 10 * 16 + to));
+	                        }
+	                        else
+	                        {
+	                        	//up grass top
+	                            level.setBlock(x, y, (byte) (1 + 8 * 16 + to));
+	                        }
+	                    }
+	                }
+	                else if (b[0][0] == b[0][1] && b[1][0] == b[1][1])
+	                {
+	                    if (b[0][0])
+	                    {
+	                    	//right grass top
+	                        level.setBlock(x, y, (byte) (2 + 9 * 16 + to));
+	                    }
+	                    else
+	                    {
+	                    	//left grass top
+	                        level.setBlock(x, y, (byte) (0 + 9 * 16 + to));
+	                    }
+	                }
+	                else if (b[0][0] == b[1][1] && b[0][1] == b[1][0])
+	                {
+	                    level.setBlock(x, y, (byte) (1 + 9 * 16 + to));
+	                }
+	                else if (b[0][0] == b[1][0])
+	                {
+	                    if (b[0][0])
+	                    {
+	                        if (b[0][1])
+	                        {
+	                            level.setBlock(x, y, (byte) (3 + 10 * 16 + to));
+	                        }
+	                        else
+	                        {
+	                            level.setBlock(x, y, (byte) (3 + 11 * 16 + to));
+	                        }
+	                    }
+	                    else
+	                    {
+	                        if (b[0][1])
+	                        {
+	                        	//right up grass top
+	                            level.setBlock(x, y, (byte) (2 + 8 * 16 + to));
+	                        }
+	                        else
+	                        {
+	                        	//left up grass top
+	                            level.setBlock(x, y, (byte) (0 + 8 * 16 + to));
+	                        }
+	                    }
+	                }
+	                else if (b[0][1] == b[1][1])
+	                {
+	                    if (b[0][1])
+	                    {
+	                        if (b[0][0])
+	                        {
+	                        	//left pocket grass
+	                            level.setBlock(x, y, (byte) (3 + 9 * 16 + to));
+	                        }
+	                        else
+	                        {
+	                        	//right pocket grass
+	                            level.setBlock(x, y, (byte) (3 + 8 * 16 + to));
+	                        }
+	                    }
+	                    else
+	                    {
+	                        if (b[0][0])
+	                        {
+	                            level.setBlock(x, y, (byte) (2 + 10 * 16 + to));
+	                        }
+	                        else
+	                        {
+	                            level.setBlock(x, y, (byte) (0 + 10 * 16 + to));
+	                        }
+	                    }
+	                }
+	                else
+	                {
+	                    level.setBlock(x, y, (byte) (0 + 1 * 16 + to));
+	                }
+	            }
+	        }
+	    }
 //	    
 //	    public RandomLevel clone() throws CloneNotSupportedException {
 //

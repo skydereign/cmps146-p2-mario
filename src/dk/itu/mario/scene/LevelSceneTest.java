@@ -1,6 +1,7 @@
 package dk.itu.mario.scene;
 import java.awt.GraphicsConfiguration;
 import java.io.DataInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Random;
@@ -66,9 +67,13 @@ import dk.itu.mario.res.ResourcesManager;
 		        		//	the interface containing detailed information
 		        		String detailedInfo = FileHandler.readFile("DetailedInfo.txt");
 		                
-		              }
-			        	else
-		        		currentLevel = new RandomLevel(320, 15, levelSeed, levelDifficulty,levelType);
+		              } else
+						try {
+							currentLevel = new RandomLevel(320, 15, levelSeed, levelDifficulty,levelType);
+						} catch (FileNotFoundException e1) {
+							// TODO Auto-generated catch block
+							e1.printStackTrace();
+						}
 
 		        try {
 					 level = currentLevel.clone();
